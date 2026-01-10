@@ -28,14 +28,15 @@ jobs:
     # --- CARGAMOS EL ENTORNO DE VISUAL STUDIO PRIMERO ---
     - uses: ilammy/msvc-dev-cmd@v1
 
-    # --- AHORA COMPILAMOS OPENSSL (NMAKE YA SERÁ RECONOCIDO) ---
+    # --- AHORA COMPILAMOS OPENSSL (SIN TESTS PARA QUE SEA RÁPIDO Y NO FALLE) ---
     - name: Compile OpenSSL from Source
       shell: powershell
       run: |
         choco install strawberryperl -y --no-progress
         git clone --depth 1 --branch openssl-3.1.0 https://github.com/openssl/openssl.git openssl-src
         cd openssl-src
-        perl Configure VC-WIN64A --prefix=$PWD/dist --openssldir=$PWD/dist
+        # 'no-tests' evita el error que tuviste y ahorra mucho tiempo
+        perl Configure VC-WIN64A no-tests shared --prefix=$PWD/dist --openssldir=$PWD/dist
         nmake
         nmake install_sw
         $binDir = "../../build/bin/"
