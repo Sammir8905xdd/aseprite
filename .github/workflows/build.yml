@@ -14,27 +14,6 @@ jobs:
       with:
         submodules: 'recursive'
 
-    # --- PASO PARA COMPILAR OPENSSL DESDE CÓDIGO FUENTE ---
-    - name: Compile OpenSSL from Source
-      shell: powershell
-      run: |
-        # Instalamos Perl (necesario para configurar la compilación de OpenSSL)
-        choco install strawberryperl -y --no-progress
-        
-        # Descargamos el código fuente oficial de OpenSSL 3.1
-        git clone --depth 1 --branch openssl-3.1.0 https://github.com/openssl/openssl.git openssl-src
-        cd openssl-src
-        
-        # Configuramos y compilamos usando las herramientas de Visual Studio (nmake)
-        perl Configure VC-WIN64A --prefix=$PWD/dist --openssldir=$PWD/dist
-        nmake
-        nmake install_sw
-        
-        # Copiamos las DLLs resultantes a la carpeta de binarios de Aseprite
-        $binDir = "../../build/bin/"
-        if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir }
-        Copy-Item "./dist/bin/*.dll" $binDir -Force
-    
     - name: Install Skia
       shell: bash
       run: |
@@ -45,7 +24,23 @@ jobs:
         unzip "$skia_file" -d skia
 
     - uses: aseprite/get-ninja@main
+    
+    # --- CARGAMOS EL ENTORNO DE VISUAL STUDIO PRIMERO ---
     - uses: ilammy/msvc-dev-cmd@v1
+
+    # --- AHORA COMPILAMOS OPENSSL (NMAKE YA SERÁ RECONOCIDO) ---
+    - name: Compile OpenSSL from Source
+      shell: powershell
+      run: |
+        choco install strawberryperl -y --no-progress
+        git clone --depth 1 --branch openssl-3.1.0 https://github.com/openssl/openssl.git openssl-src
+        cd openssl-src
+        perl Configure VC-WIN64A --prefix=$PWD/dist --openssldir=$PWD/dist
+        nmake
+        nmake install_sw
+        $binDir = "../../build/bin/"
+        if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir }
+        Copy-Item "./dist/bin/*.dll" $binDir -Force
 
     - name: Generating Makefiles
       shell: bash
@@ -55,7 +50,6 @@ jobs:
         export enable_scripting=on
         export skia_arch=x64
         
-        # Ahora que compilamos OpenSSL, le decimos a CMake dónde encontrarlo
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DENABLE_TESTS=ON \
