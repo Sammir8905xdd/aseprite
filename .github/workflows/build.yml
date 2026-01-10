@@ -51,13 +51,16 @@ jobs:
         export enable_scripting=on
         export skia_arch=x64
         
+        # CAMBIO CRÍTICO: USE_SHARED_CURL=OFF
+        # Esto hace que Aseprite use su propio CURL interno (que siempre funciona)
+        # pero lo enlazamos con nuestro OpenSSL compilado manualmente.
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DENABLE_TESTS=ON \
           -DENABLE_SCRIPTING=$enable_scripting \
           -DENABLE_CCACHE=$enable_ccache \
           -DLAF_BACKEND=$laf_backend \
-          -DUSE_SHARED_CURL=ON \
+          -DUSE_SHARED_CURL=OFF \
           -DOPENSSL_ROOT_DIR=$(realpath openssl-src/dist) \
           -DSKIA_DIR=$(realpath skia) \
           -DSKIA_LIBRARY_DIR=$(realpath skia/out/Release-$skia_arch)
