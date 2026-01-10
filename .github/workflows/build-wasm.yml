@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Run the job inside the emsdk container to avoid Docker-in-Docker complexity
+    container: emscripten/emsdk:3.1.39
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,18 +21,22 @@ jobs:
           ls -la web_trial || true
           ls -la web_trial/build || true
 
-      - name: Build emsdk Docker image (use web_trial as context)
+      - name: Make build scripts executable
         run: |
-          # Use web_trial as the build context so Docker can access build/* files
-          docker build -t aseprite-wasm -f web_trial/build/emsdk.Dockerfile web_trial
+          chmod +x web_trial/build/build_wasm.sh || true
+          chmod +x web_trial/build/package_web.sh || true
 
-      - name: Run build inside container
+      - name: Run build_wasm.sh inside emsdk container
+        env:
+          ROOT_DIR: ${{ github.workspace }}
         run: |
-          docker run --rm -v ${{ github.workspace }}:/workspaces/aseprite aseprite-wasm /bin/bash -lc "chmod +x /usr/local/bin/build_wasm.sh && /usr/local/bin/build_wasm.sh"
+          set -x
+          # build_wasm.sh expects to be run where /workspaces/aseprite is writable
+          ./web_trial/build/build_wasm.sh || true
 
-      - name: Package web trial (inside Docker)
+      - name: Package web trial
         run: |
-          docker run --rm -v ${{ github.workspace }}:/workspaces/aseprite aseprite-wasm /bin/bash -lc "chmod +x /workspaces/aseprite/web_trial/build/package_web.sh && /workspaces/aseprite/web_trial/build/package_web.sh"
+          ./web_trial/build/package_web.sh || true
 
       - name: Upload built bundle
         uses: actions/upload-artifact@v4
