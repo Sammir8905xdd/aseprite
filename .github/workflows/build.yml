@@ -13,6 +13,27 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: 'recursive'
+
+    # --- PASO PARA COMPILAR OPENSSL DESDE CÓDIGO FUENTE ---
+    - name: Compile OpenSSL from Source
+      shell: powershell
+      run: |
+        # Instalamos Perl (necesario para configurar la compilación de OpenSSL)
+        choco install strawberryperl -y --no-progress
+        
+        # Descargamos el código fuente oficial de OpenSSL 3.1
+        git clone --depth 1 --branch openssl-3.1.0 https://github.com/openssl/openssl.git openssl-src
+        cd openssl-src
+        
+        # Configuramos y compilamos usando las herramientas de Visual Studio (nmake)
+        perl Configure VC-WIN64A --prefix=$PWD/dist --openssldir=$PWD/dist
+        nmake
+        nmake install_sw
+        
+        # Copiamos las DLLs resultantes a la carpeta de binarios de Aseprite
+        $binDir = "../../build/bin/"
+        if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir }
+        Copy-Item "./dist/bin/*.dll" $binDir -Force
     
     - name: Install Skia
       shell: bash
@@ -34,40 +55,27 @@ jobs:
         export enable_scripting=on
         export skia_arch=x64
         
-        # EXPLICACIÓN DE LOS CAMBIOS:
-        # -DUSE_SHARED_CURL=OFF: Compila curl de forma estática (quita dependencia de libcrypto dll)
-        # -DENABLE_UPDATER=OFF: Quita el buscador de actualizaciones que usa red y pide SSL
+        # Ahora que compilamos OpenSSL, le decimos a CMake dónde encontrarlo
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DENABLE_TESTS=ON \
           -DENABLE_SCRIPTING=$enable_scripting \
           -DENABLE_CCACHE=$enable_ccache \
           -DLAF_BACKEND=$laf_backend \
-          -DUSE_SHARED_CURL=OFF \
-          -DENABLE_UPDATER=OFF \
+          -DUSE_SHARED_CURL=ON \
+          -DOPENSSL_ROOT_DIR=$(realpath openssl-src/dist) \
           -DSKIA_DIR=$(realpath skia) \
           -DSKIA_LIBRARY_DIR=$(realpath skia/out/Release-$skia_arch)
 
-    - name: Compiling
+    - name: Compiling Aseprite
       shell: bash
       run: |
         cd build && ninja
 
-    - name: Collect Dependencies (Windows)
-      shell: powershell
-      run: |
-        $binDir = "./build/bin/"
-        # Ya no buscamos libcrypto en el sistema porque ahora es estático
-        # Solo recolectamos las DLLs que el compilador haya generado legítimamente
-        $repoDlls = Get-ChildItem -Path . -Filter "*.dll" -Recurse | Where-Object { $_.FullName -notlike "*skia*" }
-        foreach ($dll in $repoDlls) {
-            Copy-Item -Path $dll.FullName -Destination $binDir -Force -ErrorAction SilentlyContinue
-        }
-
     - name: Uploading Aseprite Bundle
       uses: actions/upload-artifact@v4
       with:
-        name: Aseprite-Windows-Static
+        name: Aseprite-Windows-Custom-OpenSSL
         path: |
           build/bin/aseprite.exe
           build/bin/*.dll
