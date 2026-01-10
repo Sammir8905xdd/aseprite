@@ -3,18 +3,19 @@ name: Build Aseprite WASM
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Run the job inside the emsdk container to avoid Docker-in-Docker complexity
+    # Contenedor para evitar complejidad Docker-in-Docker
     container: emscripten/emsdk:3.1.39
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug: list repo files
+      - name: Debug list repo files
         run: |
           echo "Listing workspace root and web_trial/build"
           ls -la
@@ -31,7 +32,7 @@ jobs:
           ROOT_DIR: ${{ github.workspace }}
         run: |
           set -x
-          # build_wasm.sh expects to be run where /workspaces/aseprite is writable
+          # Se asume que el script espera ejecutarse donde /workspaces/aseprite es escribible
           ./web_trial/build/build_wasm.sh || true
 
       - name: Package web trial
@@ -43,5 +44,3 @@ jobs:
         with:
           name: aseprite-web-trial-built
           path: web_trial/aseprite-web-trial-built.zip
-
-               
