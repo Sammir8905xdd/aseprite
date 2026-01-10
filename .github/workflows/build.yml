@@ -2,11 +2,10 @@ name: build
 on: [push, pull_request]
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
         build_type: [RelWithDebInfo]
         ui: [gui]
         scripting: [lua]
@@ -14,86 +13,82 @@ jobs:
     - uses: actions/checkout@v4
       with:
         submodules: 'recursive'
-    - name: Install Dependencies
-      if: runner.os == 'Linux'
-      shell: bash
+    
+    # --- INSTALACIÓN OBLIGATORIA DE OPENSSL EN WINDOWS ---
+    - name: Install OpenSSL (Windows)
+      shell: powershell
       run: |
-        sudo apt-get update -qq
-        sudo apt-get install -y \
-          libpixman-1-dev libfreetype6-dev libharfbuzz-dev zlib1g-dev \
-          libx11-dev libxcursor-dev libxi-dev libxrandr-dev libgl1-mesa-dev \
-          libfontconfig1-dev
+        choco install openssl --version 3.1.0 -y --no-progress
+    
     - name: Install Skia
-      if: ${{ matrix.ui == 'gui' }}
       shell: bash
       run: |
-        if [[ "${{ runner.os }}" == "Windows" ]] ; then
-          this_dir=$(cygpath "${{ github.workspace }}")
-        else
-          this_dir="${{ github.workspace }}"
-        fi
+        this_dir=$(cygpath "${{ github.workspace }}")
         skia_url=$(source $this_dir/laf/misc/skia-url.sh | xargs)
         skia_file=$(basename $skia_url)
         curl --ssl-revoke-best-effort -L -o "$skia_file" "$skia_url"
         unzip "$skia_file" -d skia
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2.17
-      if: ${{ runner.os == 'Linux' || runner.os == 'macOS' }}
-      with:
-        key: ${{ matrix.os }}-${{ matrix.ui }}-${{ matrix.scripting }}-${{ matrix.build_type }}
+
     - uses: aseprite/get-ninja@main
     - uses: ilammy/msvc-dev-cmd@v1
-      if: runner.os == 'Windows'
+
     - name: Generating Makefiles
       shell: bash
       run: |
-        if [[ "${{ runner.os }}" == "Windows" ]] ; then
-          export enable_ccache=off
-        else
-          export enable_ccache=on
-        fi
-        if [[ "${{ matrix.ui }}" == "gui" ]] ; then
-          export laf_backend=skia
-        else
-          export laf_backend=none
-        fi
-        if [[ "${{ matrix.scripting }}" == "lua" ]] ; then
-          export enable_scripting=on
-        else
-          export enable_scripting=off
-        fi
-        if [[ "${{ runner.os }}" == "macOS" ]] ; then
-          export skia_arch=arm64
-        else
-          export skia_arch=x64
-        fi
+        export enable_ccache=off
+        export laf_backend=skia
+        export enable_scripting=on
+        export skia_arch=x64
+        
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.14 \
           -DENABLE_TESTS=ON \
           -DENABLE_SCRIPTING=$enable_scripting \
           -DENABLE_CCACHE=$enable_ccache \
           -DLAF_BACKEND=$laf_backend \
           -DSKIA_DIR=$(realpath skia) \
           -DSKIA_LIBRARY_DIR=$(realpath skia/out/Release-$skia_arch)
+
     - name: Compiling
       shell: bash
       run: |
         cd build && ninja
-    
-    # --- BLOQUE DE SUBIDA REFORZADO PARA INCLUIR TODAS LAS DLLS ---
+
+    # --- RECOLECCIÓN DE DEPENDENCIAS (SOLO WINDOWS) ---
+    - name: Collect Dependencies (Windows)
+      shell: powershell
+      run: |
+        $binDir = "./build/bin/"
+        $cryptoName = "libcrypto-3-x64.dll"
+        $sslName = "libssl-3-x64.dll"
+        
+        # Copiar desde la instalación oficial de OpenSSL
+        $chocoPath = "C:\Program Files\OpenSSL-Win64\bin\"
+        if (Test-Path "$chocoPath$cryptoName") {
+            Write-Host "Copiando $cryptoName desde instalación oficial..."
+            Copy-Item "$chocoPath$cryptoName" $binDir -Force
+            Copy-Item "$chocoPath$sslName" $binDir -Force
+        }
+
+        # Búsqueda de otras DLLs generadas en el build
+        $repoDlls = Get-ChildItem -Path . -Filter "*.dll" -Recurse | Where-Object { $_.FullName -notlike "*skia*" }
+        foreach ($dll in $repoDlls) {
+            Copy-Item -Path $dll.FullName -Destination $binDir -Force -ErrorAction SilentlyContinue
+        }
+
+        # Verificación obligatoria para que no falle al abrir
+        if (-not (Test-Path "$binDir$cryptoName")) {
+             Write-Error "¡Error crítico: No se encontró $cryptoName!"
+             exit 1
+        }
+
     - name: Uploading Aseprite Bundle
       uses: actions/upload-artifact@v4
       with:
-        name: Aseprite-${{ runner.os }}-${{ matrix.build_type }}
+        name: Aseprite-Windows-Only
         path: |
-          build/bin/aseprite*
+          build/bin/aseprite.exe
           build/bin/*.dll
-          build/bin/*.dylib
-          build/bin/*.so
           build/bin/data/**
-          build/**/*.dll
-          build/**/*.dylib
-          build/**/*.so
         if-no-files-found: error
         retention-days: 7
