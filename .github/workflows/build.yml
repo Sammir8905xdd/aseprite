@@ -39,9 +39,20 @@ jobs:
         perl Configure VC-WIN64A no-tests shared --prefix=$PWD/dist --openssldir=$PWD/dist
         nmake
         nmake install_sw
-        $binDir = "../../build/bin/"
-        if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir }
+        # Corregido: solo subimos un nivel (..) para ir a build/bin
+        $binDir = "../build/bin/"
+        if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force }
         Copy-Item "./dist/bin/*.dll" $binDir -Force
+
+    # --- NUEVO PASO: SUBIR DLLS INMEDIATAMENTE ---
+    # Si Aseprite falla después, al menos ya tendrás tus DLLs guardadas aquí.
+    - name: Upload OpenSSL DLLs Immediately
+      uses: actions/upload-artifact@v4
+      with:
+        name: OpenSSL-DLLs-Only
+        path: build/bin/*.dll
+        if-no-files-found: warn
+        retention-days: 1
 
     - name: Generating Makefiles
       shell: bash
