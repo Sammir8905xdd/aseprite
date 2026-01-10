@@ -1,0 +1,12 @@
+*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}
+body{margin:0;background:#222;color:#eee}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px;background:#111;border-bottom:1px solid #333}
+.controls{display:flex;gap:8px;align-items:center}
+main{display:flex;justify-content:center;align-items:center;height:calc(100vh - 68px)}
+#canvas{image-rendering:pixelated;background:#fff;border:1px solid #444}
+#trial-badge{position:absolute;left:12px;top:68px;background:#b23;color:#111;padding:6px 10px;border-radius:4px;font-weight:bold}
+label{font-size:13px}
+button{background:#2a2a2a;border:1px solid #444;color:#eee;padding:6px 8px;border-radius:4px;cursor:pointer}
+button:hover{background:#3a3a3a}
+
+.controls input[type=number]{width:72px;padding:6px}

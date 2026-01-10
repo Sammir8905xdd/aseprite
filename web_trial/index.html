@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Aseprite - Web Trial</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Aseprite — Web Trial</h1>
+    <div class="controls">
+      <label>W: <input id="width" type="number" value="64" min="1"></label>
+      <label>H: <input id="height" type="number" value="64" min="1"></label>
+      <input id="color" type="color" value="#ff0000">
+      <button id="clear">Limpiar</button>
+      <button id="export-ase">Exportar .ase</button>
+      <button id="download-zip">Descargar Web ZIP</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="trial-badge">Trial Mode</div>
+    <canvas id="canvas" width="64" height="64"></canvas>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.0/dist/jszip.min.js"></script>
+  <script src="ase_exporter.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

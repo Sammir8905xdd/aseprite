@@ -1,0 +1,31 @@
+name: Build Aseprite WASM
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build emsdk Docker image
+        run: |
+          docker build -t aseprite-wasm -f web_trial/build/emsdk.Dockerfile .
+
+      - name: Run build inside container
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspaces/aseprite aseprite-wasm /bin/bash -lc "chmod +x /usr/local/bin/build_wasm.sh && /usr/local/bin/build_wasm.sh"
+
+      - name: Package web trial (inside Docker)
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspaces/aseprite aseprite-wasm /bin/bash -lc "chmod +x /workspaces/aseprite/web_trial/build/package_web.sh && /workspaces/aseprite/web_trial/build/package_web.sh"
+
+      - name: Upload built bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: aseprite-web-trial-built
+          path: web_trial/aseprite-web-trial-built.zip
