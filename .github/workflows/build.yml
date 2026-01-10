@@ -81,7 +81,7 @@ jobs:
       run: |
         cd build && ninja
     
-    # --- BLOQUE DE SUBIDA CON DLLS Y DATA ---
+    # --- BLOQUE DE SUBIDA REFORZADO PARA INCLUIR TODAS LAS DLLS ---
     - name: Uploading Aseprite Bundle
       uses: actions/upload-artifact@v4
       with:
@@ -91,6 +91,9 @@ jobs:
           build/bin/*.dll
           build/bin/*.dylib
           build/bin/*.so
-          build/bin/data
+          build/bin/data/**
+          build/**/*.dll
+          build/**/*.dylib
+          build/**/*.so
         if-no-files-found: error
         retention-days: 7
