@@ -12,9 +12,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build emsdk Docker image
+      - name: Debug: list repo files
         run: |
-          docker build -t aseprite-wasm -f web_trial/build/emsdk.Dockerfile .
+          echo "Listing workspace root and web_trial/build"
+          ls -la
+          ls -la web_trial || true
+          ls -la web_trial/build || true
+
+      - name: Build emsdk Docker image (use web_trial as context)
+        run: |
+          # Use web_trial as the build context so Docker can access build/* files
+          docker build -t aseprite-wasm -f web_trial/build/emsdk.Dockerfile web_trial
 
       - name: Run build inside container
         run: |
