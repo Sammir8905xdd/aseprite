@@ -43,3 +43,5 @@ jobs:
         with:
           name: aseprite-web-trial-built
           path: web_trial/aseprite-web-trial-built.zip
+
+               
