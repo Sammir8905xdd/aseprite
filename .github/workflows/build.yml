@@ -14,12 +14,6 @@ jobs:
       with:
         submodules: 'recursive'
     
-    # --- INSTALACIÓN OBLIGATORIA DE OPENSSL EN WINDOWS ---
-    - name: Install OpenSSL (Windows)
-      shell: powershell
-      run: |
-        choco install openssl --version 3.1.0 -y --no-progress
-    
     - name: Install Skia
       shell: bash
       run: |
@@ -40,12 +34,17 @@ jobs:
         export enable_scripting=on
         export skia_arch=x64
         
+        # EXPLICACIÓN DE LOS CAMBIOS:
+        # -DUSE_SHARED_CURL=OFF: Compila curl de forma estática (quita dependencia de libcrypto dll)
+        # -DENABLE_UPDATER=OFF: Quita el buscador de actualizaciones que usa red y pide SSL
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DENABLE_TESTS=ON \
           -DENABLE_SCRIPTING=$enable_scripting \
           -DENABLE_CCACHE=$enable_ccache \
           -DLAF_BACKEND=$laf_backend \
+          -DUSE_SHARED_CURL=OFF \
+          -DENABLE_UPDATER=OFF \
           -DSKIA_DIR=$(realpath skia) \
           -DSKIA_LIBRARY_DIR=$(realpath skia/out/Release-$skia_arch)
 
@@ -54,38 +53,21 @@ jobs:
       run: |
         cd build && ninja
 
-    # --- RECOLECCIÓN DE DEPENDENCIAS (SOLO WINDOWS) ---
     - name: Collect Dependencies (Windows)
       shell: powershell
       run: |
         $binDir = "./build/bin/"
-        $cryptoName = "libcrypto-3-x64.dll"
-        $sslName = "libssl-3-x64.dll"
-        
-        # Copiar desde la instalación oficial de OpenSSL
-        $chocoPath = "C:\Program Files\OpenSSL-Win64\bin\"
-        if (Test-Path "$chocoPath$cryptoName") {
-            Write-Host "Copiando $cryptoName desde instalación oficial..."
-            Copy-Item "$chocoPath$cryptoName" $binDir -Force
-            Copy-Item "$chocoPath$sslName" $binDir -Force
-        }
-
-        # Búsqueda de otras DLLs generadas en el build
+        # Ya no buscamos libcrypto en el sistema porque ahora es estático
+        # Solo recolectamos las DLLs que el compilador haya generado legítimamente
         $repoDlls = Get-ChildItem -Path . -Filter "*.dll" -Recurse | Where-Object { $_.FullName -notlike "*skia*" }
         foreach ($dll in $repoDlls) {
             Copy-Item -Path $dll.FullName -Destination $binDir -Force -ErrorAction SilentlyContinue
         }
 
-        # Verificación obligatoria para que no falle al abrir
-        if (-not (Test-Path "$binDir$cryptoName")) {
-             Write-Error "¡Error crítico: No se encontró $cryptoName!"
-             exit 1
-        }
-
     - name: Uploading Aseprite Bundle
       uses: actions/upload-artifact@v4
       with:
-        name: Aseprite-Windows-Only
+        name: Aseprite-Windows-Static
         path: |
           build/bin/aseprite.exe
           build/bin/*.dll
