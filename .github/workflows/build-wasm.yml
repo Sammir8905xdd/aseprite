@@ -8,12 +8,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Usamos el contenedor de Emscripten como solicitaste
     container: emscripten/emsdk:3.1.39
     
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' # Aseprite necesita sus submódulos para compilar
 
       - name: Make build script executable
         run: chmod +x web_trial/build.sh
@@ -23,21 +24,19 @@ jobs:
           ROOT_DIR: ${{ github.workspace }}
         run: |
           set -x
-          # Ejecutamos el script de construcción
-          ./web_trial/build.sh
+          # Entramos a la carpeta para ejecutarlo desde ahí
+          cd web_trial
+          ./build.sh
           
-          echo "--- REVISIÓN DE ARCHIVOS GENERADOS ---"
-          # Listamos la raíz para ver dónde quedó el ZIP
+          echo "--- CONTENIDO DE WEB_TRIAL ---"
           ls -lh
-          # Buscamos archivos .wasm para ver si se compilaron realmente
+          # Buscamos el wasm aquí adentro
           find . -name "*.wasm"
 
       - name: Upload built bundle
         uses: actions/upload-artifact@v4
         with:
           name: aseprite-web-trial-built
-          # Ajustado al nombre que tu script mostró en el log (aseprite-web-trial.zip)
-          # Si el archivo queda en la raíz, la ruta es solo el nombre.
-          path: aseprite-web-trial.zip
-          # Si el archivo anterior no existe, intentará subir todo el contenido de web_trial
-          if-no-files-found: warn
+          # Ajustamos la ruta: el archivo está DENTRO de web_trial
+          path: web_trial/aseprite-web-trial.zip
+          if-no-files-found: error
