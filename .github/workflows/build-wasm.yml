@@ -1,56 +1,41 @@
-name: build-web
-on: [push, pull_request]
+name: Build Aseprite WASM
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
 
 jobs:
-  build-wasm:
-    runs-on: ubuntu-latest # Usamos Linux porque Emscripten vuela aquí
+  build:
+    runs-on: ubuntu-latest
+    container: emscripten/emsdk:3.1.39
+    
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
-    # 1. Instalar el SDK de Emscripten (el compilador de C++ a WASM)
-    - name: Setup Emscripten
-      uses: mymindstorm/setup-emsdk@v14
-      with:
-        version: 3.1.45 # Versión estable compatible con Skia/Wasm
+      # Instalamos dependencias necesarias que a veces el contenedor de emsdk no trae
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y zip unzip curl
 
-    # 2. Skia para WASM (M3 de Skia tiene soporte experimental para WASM)
-    # Nota: Aseprite depende de una versión específica de Skia (aseprite-m102)
-    - name: Download Skia WASM prebuilt
-      run: |
-        mkdir skia
-        curl -L https://github.com/aseprite/skia/releases/download/m102-861e4743af/Skia-CanvasKit-Release.zip -o skia.zip
-        unzip skia.zip -d skia
+      - name: Make build script executable
+        run: chmod +x web_trial/build.sh
 
-    # 3. Configurar CMake para Emscripten
-    - name: Generating WASM Makefiles
-      run: |
-        mkdir build && cd build
-        # Usamos emcmake para que CMake sepa que el destino es la Web
-        emcmake cmake .. \
-          -DCMAKE_BUILD_TYPE=Release \
-          -DLAF_BACKEND=skia \
-          -DSKIA_DIR=$GITHUB_WORKSPACE/skia \
-          -DSKIA_LIBRARY_DIR=$GITHUB_WORKSPACE/skia/out/Release-wasm \
-          -DENABLE_SCRIPTING=ON \
-          -DUSE_SHARED_CURL=OFF \
-          -DENABLE_TESTS=OFF \
-          -DCMAKE_CXX_FLAGS="-s USE_SDL=2 -s WASM=1 -s ALLOW_MEMORY_GROWTH=1"
-
-    # 4. Compilar con Ninja
-    - uses: aseprite/get-ninja@main
-    - name: Compiling Aseprite to WASM
-      run: |
-        cd build
-        ninja aseprite
-
-    # 5. Subir los archivos Web
-    - name: Upload Web Bundle
-      uses: actions/upload-artifact@v4
-      with:
-        name: Aseprite-Web-WASM
-        path: |
-          build/bin/aseprite.js
-          build/bin/aseprite.wasm
-          build/bin/data/
+      - name: Run build script
+        env:
+          ROOT_DIR: ${{ github.workspace }}
+        run: |
+          set -e # Esto hace que el Action se detenga si un comando falla
+          cd web_trial
+          ./build.sh
+          
+      - name: Upload built bundle
+        if: success() # Solo sube si todo salió bien
+        uses: actions/upload-artifact@v4
+        with:
+          name: aseprite-web-trial-built
+          path: web_trial/aseprite-web-trial.zip
