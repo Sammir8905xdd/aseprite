@@ -10,9 +10,12 @@ jobs:
         ui: [gui]
         scripting: [lua]
     steps:
-    - uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
+    # --- DESCARGAR CÓDIGO FUENTE ESPECÍFICO v1.3.16.1 ---
+    - name: Download Aseprite v1.3.16.1 Source
+      shell: bash
+      run: |
+        curl -L -o aseprite-source.zip https://github.com/aseprite/aseprite/releases/download/v1.3.16/Aseprite-v1.3.16.1-Source.zip
+        unzip aseprite-source.zip -d .
 
     - name: Install Skia
       shell: bash
@@ -25,34 +28,7 @@ jobs:
 
     - uses: aseprite/get-ninja@main
     
-    # --- CARGAMOS EL ENTORNO DE VISUAL STUDIO PRIMERO ---
     - uses: ilammy/msvc-dev-cmd@v1
-
-    # --- AHORA COMPILAMOS OPENSSL (SIN TESTS PARA QUE SEA RÁPIDO Y NO FALLE) ---
-    - name: Compile OpenSSL from Source
-      shell: powershell
-      run: |
-        choco install strawberryperl -y --no-progress
-        git clone --depth 1 --branch openssl-3.1.0 https://github.com/openssl/openssl.git openssl-src
-        cd openssl-src
-        # 'no-tests' evita el error que tuviste y ahorra mucho tiempo
-        perl Configure VC-WIN64A no-tests shared --prefix=$PWD/dist --openssldir=$PWD/dist
-        nmake
-        nmake install_sw
-        # Corregido: solo subimos un nivel (..) para ir a build/bin
-        $binDir = "../build/bin/"
-        if (!(Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force }
-        Copy-Item "./dist/bin/*.dll" $binDir -Force
-
-    # --- NUEVO PASO: SUBIR DLLS INMEDIATAMENTE ---
-    # Si Aseprite falla después, al menos ya tendrás tus DLLs guardadas aquí.
-    - name: Upload OpenSSL DLLs Immediately
-      uses: actions/upload-artifact@v4
-      with:
-        name: OpenSSL-DLLs-Only
-        path: build/bin/*.dll
-        if-no-files-found: warn
-        retention-days: 1
 
     - name: Generating Makefiles
       shell: bash
@@ -62,9 +38,7 @@ jobs:
         export enable_scripting=on
         export skia_arch=x64
         
-        # CAMBIO CRÍTICO: USE_SHARED_CURL=OFF
-        # Esto hace que Aseprite use su propio CURL interno (que siempre funciona)
-        # pero lo enlazamos con nuestro OpenSSL compilado manualmente.
+        # Eliminamos la referencia a openssl-src y usamos la del sistema
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DENABLE_TESTS=ON \
@@ -72,7 +46,6 @@ jobs:
           -DENABLE_CCACHE=$enable_ccache \
           -DLAF_BACKEND=$laf_backend \
           -DUSE_SHARED_CURL=OFF \
-          -DOPENSSL_ROOT_DIR=$(realpath openssl-src/dist) \
           -DSKIA_DIR=$(realpath skia) \
           -DSKIA_LIBRARY_DIR=$(realpath skia/out/Release-$skia_arch)
 
@@ -84,10 +57,9 @@ jobs:
     - name: Uploading Aseprite Bundle
       uses: actions/upload-artifact@v4
       with:
-        name: Aseprite-Windows-Custom-OpenSSL
+        name: Aseprite-v1.3.16.1-Windows
         path: |
           build/bin/aseprite.exe
-          build/bin/*.dll
           build/bin/data/**
         if-no-files-found: error
         retention-days: 7
